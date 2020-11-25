@@ -166,5 +166,10 @@ ggplot(sisyn_wide, aes(DSi, Suspended.Chl))+
 
 
 ```{r}
+git remote add origin https://github.com/pkthomas88/SiSyn.git
+git remote set-url origin https://github.com/pkthomas88/SiSyn
+git branch -M main
+git push -u origin main
+
 ```
 
