@@ -86,7 +86,7 @@ ggplot(sisyn_wide, aes(x=DSi, y=LTER))+
   scale_x_log10()
 ```
 
-# And annual mean DSi by LTER
+# And annual mean DSi, NOx, and PO4 by LTER
 
 ```{r}
 sisyn_annual <- sisyn_wide %>% 
@@ -102,6 +102,19 @@ ggplot(sisyn_annual, aes(year, DSi))+
   #scale_y_log10()+
   facet_wrap(~LTER, scales = "free")
 
+
+ggplot(sisyn_annual, aes(year, PO4))+
+  geom_point()+
+  geom_line()+
+  #scale_y_log10()+
+  facet_wrap(~LTER, scales = "free")
+
+
+ggplot(sisyn_annual, aes(year, NOx))+
+  geom_point()+
+  geom_line()+
+  #scale_y_log10()+
+  facet_wrap(~LTER, scales = "free")
 ```
 
 
