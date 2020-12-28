@@ -23,6 +23,8 @@ library(MASS)
 library(vegan)
 library(lubridate)
 library(scales)
+library(lme4)
+library(nlme)
 
 theme_set(theme_bw()+
             theme(axis.text=element_text(size=12),
@@ -90,7 +92,7 @@ ggplot(sisyn_wide, aes(x=DSi, y=LTER))+
 
 ```{r}
 sisyn_annual <- sisyn_wide %>% 
-  group_by(year, LTER) %>% 
+  group_by(year, LTER, site) %>% 
   summarize(DSi = mean(DSi, na.rm=TRUE),
             NOx = mean(NOx, na.rm=TRUE),
             PO4 = mean(PO4, na.rm=TRUE))
@@ -102,6 +104,18 @@ ggplot(sisyn_annual, aes(year, DSi))+
   #scale_y_log10()+
   facet_wrap(~LTER, scales = "free")
 
+ggplot(sisyn_annual, aes(year, DSi))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  geom_line()+
+  #scale_y_log10()+
+  facet_wrap(~LTER, scales = "free")
+
+fit <- lmer(DSi~year + (DSi|LTER), data=sisyn_wide)
+summary(fit)
+
+fit <- lme(DSi~year, random=~year|LTER, data=sisyn_wide)
+summary(fit)
 
 ggplot(sisyn_annual, aes(year, PO4))+
   geom_point()+
@@ -232,10 +246,21 @@ ggplot(sisyn_wide, aes(DSi, Suspended.Chl))+
 
 ```{r}
 
+fit <- lm(DSi~year|LTER, data=sisyn_wide)
+summary(fit)
+avPlots(fit)
+
+#subset sites with >20 year record?
+
 ```
 
 
 ```{r}
+
+ggplot(sisyn_annual, aes(year, DSi))+
+  facet_wrap(~site, scales ="free")+
+  geom_smooth(method="lm", se=FALSE)
+  
 ```
 
 
