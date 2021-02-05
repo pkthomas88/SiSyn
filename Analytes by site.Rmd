@@ -25,28 +25,30 @@ select <- dplyr::select
 ```
 
 
-Make matrix of site vs counts of observations of each analyte - including ALL SITES
+> Make matrix of site vs counts of observations of each analyte - including ALL SITES for now, not just our long term ones
 
-```{r}
+```{r echo=TRUE}
 
 sisyn <- read_csv("20201111_masterdata_RAW.csv")
 
 thematrix <- sisyn %>%
-  select(site, variable, value) %>%
-  count(site, variable, sort=TRUE) %>% 
+  select(LTER, site, variable, value) %>%
+  count(LTER, site, variable, sort=TRUE) %>% 
   pivot_wider(names_from = variable, values_from = n)%>% 
-  filter(!is.na(site)) %>% 
-  column_to_rownames(var="site")
+  filter(!is.na(site)) #%>% 
+#  column_to_rownames(var="site")
 
 thematrix[is.na(thematrix)] <- 0 #turns NAs into zeros
 
+kable(head(thematrix))
+
 ```
 
->INSERT SAME^ BUT ONLY LONG TERM SITES
+>INSERT SAME^ BUT ONLY LONG TERM SITES at some point to see if patterns are different at all
 
 # All sites - no filtering by length of record
 
-> Total # observations by analyte again
+> # Total # observations by analyte as we have seen before
 
 ```{r}
 sisyn %>% count(variable, sort = TRUE) %>% kable()
@@ -60,29 +62,37 @@ sisyn %>% count(LTER, variable, sort = TRUE) %>% kable()
 
 ```
 
-## Correlations among some key analytes
+## Correlations among observation counts of some key analytes
 
-> There are 33 analytes so it's tricky to look at those all at once, but here's a subset of what should be important
-
-> Anyways, the point here is just more observations of one thing is correlated with more observations of other stuff within a site, and most sites that have lots of DSi data *usually* also have N and P data
+> There are 33 analytes so it's tricky to look at those all at once, but here's a subset of what should be important. The point here is just that more observations of one thing is correlated with more observations of other stuff within a site, and most sites that have lots of DSi data *usually* also have N and P data
 
 ```{r}
-
 thematrix %>% 
   select(DSi, NOx, NH4, PO4) %>% 
   pairs.panels(scale = TRUE)
+```
 
+> also the lower left wedge area looks like a good target for things that are measured at the same time + place as DSi (and their ratios)
+
+```{r}
 thematrix %>% 
   ggcorr()
 
-thematrix %>% 
-  select(DSi, NOx, NH4, PO4) %>% 
-  ggpairs()
+#thematrix %>% 
+ # select(DSi, NOx, NH4, PO4) %>% 
+  #ggpairs()
+```
 
-thematrix %>% 
+> correlations between DSi and other stuff
+
+```{r}
+x <- thematrix %>% 
   select(DSi, NOx, SO4, DOC, NH4, PO4, TSS, TN, TP,
          TDN, SRP, Suspended.Chl, DIN, VSS) %>% 
   corr.test()
+
+x <- x[["r"]]
+x[1,]
 
 ```
 
@@ -90,13 +100,30 @@ thematrix %>%
 ## PCA: clustering of analytes by site
 
 ```{r}
-
-pca1 <- prcomp(thematrix)
+pca1 <- prcomp(thematrix[3:35])
 summary(pca1)
-autoplot(pca1)
+#autoplot(pca1)
+```
 
+> looks like maybe 2 distinct clusters - those with lots DSi, NOx, NO4, SO4, PO4 etc and then a couple with lots of TN, TP, chl, etc
 
-autoplot(fanny(pca1, frame = TRUE,label=TRUE))
+```{r}
+autoplot(prcomp(thematrix[3:35]), data = thematrix, colour = 'LTER', loadings=TRUE, loadings.label=TRUE)
+
+#it really didn't like the names for discharge and thought it was a function
+
+thematrix <- thematrix %>% 
+  rename(IQ=`Instantaneous.Q.(Discharge)`) %>% 
+  rename(DQ = `Daily.Avg.Q.(Discharge)`)
+```
+
+> or maybe 3 clusters - those with few data points (probably not super long term sites), then those with lots of data points but going either in the direction of TN/TP or NOx/PO4?
+
+```{r}
+autoplot(fanny(thematrix[3:35], 4), frame=TRUE, frame.type='norm', data = thematrix)
+
+#autoplot(fanny(pca1, frame = TRUE,label=TRUE))
+
 
 
 ```
