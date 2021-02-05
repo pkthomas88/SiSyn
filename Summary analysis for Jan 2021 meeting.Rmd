@@ -52,7 +52,7 @@ sisyn_wide <- sisyn %>%
   mutate(sample=paste(LTER, site, Sampling.Date, sep="_")) %>%
   pivot_wider(names_from = variable, values_from = value, values_fn = mean, id_cols = c(sample, LTER, Sampling.Date, site, `Site/Stream.Name`))
 
-# making extracting year into its own column
+# making year into its own column
 
 sisyn_wide <- sisyn_wide %>% 
   mutate(sample.date=date(Sampling.Date)) %>%  

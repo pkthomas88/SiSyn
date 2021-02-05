@@ -95,6 +95,8 @@ x <- thematrix %>%
 x <- x[["r"]]
 x[1,]
 
+x
+
 ```
 
 
@@ -188,7 +190,11 @@ sisyn2 %>%
 
 ```
 
+
+# Do something to see which exact sites and days have DSI, NOx, PO4, SRP, and so on
+
 ```{r}
+
 ```
 
 
