@@ -15,6 +15,7 @@ library(psych)
 library(GGally)
 library(ggfortify)
 library(cluster)
+library(lubridate)
 
 theme_set(theme_bw()+
             theme(axis.text=element_text(size=8),
@@ -101,14 +102,14 @@ x[1,]
 
 ```{r}
 pca1 <- prcomp(thematrix[3:35])
-summary(pca1)
+summary(pca1, size = 4)
 #autoplot(pca1)
 ```
 
 > looks like maybe 2 distinct clusters - those with lots DSi, NOx, NO4, SO4, PO4 etc and then a couple with lots of TN, TP, chl, etc
 
 ```{r}
-autoplot(prcomp(thematrix[3:35]), data = thematrix, colour = 'LTER', loadings=TRUE, loadings.label=TRUE)
+autoplot(prcomp(thematrix[3:35]), data = thematrix, colour = 'LTER', loadings=TRUE, loadings.label=TRUE, size = 4)
 
 #it really didn't like the names for discharge and thought it was a function
 
@@ -120,40 +121,72 @@ thematrix <- thematrix %>%
 > or maybe 3 clusters - those with few data points (probably not super long term sites), then those with lots of data points but going either in the direction of TN/TP or NOx/PO4?
 
 ```{r}
-autoplot(fanny(thematrix[3:35], 4), frame=TRUE, frame.type='norm', data = thematrix)
+autoplot(fanny(thematrix[3:35], 3), frame=TRUE, frame.type='norm', data = thematrix, size = 4)
 
 #autoplot(fanny(pca1, frame = TRUE,label=TRUE))
 
-
-
 ```
 
-
-```{r}
-```
-
-
-```{r}
-```
 
 # Only long term sites
 
+> filtering to get just the LTERs we will mostly focus on with long-term data (I think)
+
+```{r, echo=TRUE}
+
+# I think these are the right long term LTERS????
+longtermLTERs <- c("ARC", "AND", "KRR(Julian)", "LMP(Wymore)", "LUQ", "MCM", "NWT", "Sagehen(Sullivan)", "UMR(Jankowski)")
+
+thematrix2 <-  thematrix %>%
+  filter(LTER %in% longtermLTERs)
+
+```
+
+> looks same as with all sites, at least that lower left wedge
 
 ```{r}
+thematrix2 %>% 
+  ggcorr()
 ```
 
 
 ```{r}
+
+autoplot(prcomp(thematrix2[3:35]), data = thematrix2, colour = 'LTER', loadings=TRUE, loadings.label=TRUE, size = 4)
+
+
+autoplot(fanny(thematrix[3:35], 3), frame=TRUE, frame.type='norm', data = thematrix, size = 4)
 ```
 
-
-
+> another way to look at which of the long-term sites have what
 
 ```{r}
 
+sisyn2 <- sisyn %>% 
+  filter(LTER %in% longtermLTERs) %>% 
+  count(LTER, site, variable, sort=TRUE)
+  
+ggplot(sisyn2, aes(variable, n))+
+  geom_boxplot()+
+  facet_wrap(~LTER)+
+  coord_flip()
+
+sisyn2 %>% 
+  filter(variable %in% c("PO4", "NOx", "DSi")) %>% 
+  ggplot(aes(variable, n))+
+  geom_boxplot()+
+  facet_wrap(~LTER)+
+  coord_flip()
+
+sisyn2 %>% 
+  filter(variable %in% c("TP", "TN", "DSi")) %>% 
+  ggplot(aes(variable, n))+
+  geom_boxplot()+
+  facet_wrap(~LTER)+
+  coord_flip()
+
+
 ```
-
-
 
 ```{r}
 ```
