@@ -54,7 +54,7 @@ kable(head(thematrix))
 sisyn %>% count(variable, sort = TRUE) %>% kable()
 ```
 
-> # Observations of analyte by LTER
+> # Observations of analyte by LTER (a lot to scroll through but you kinda see which sites have lots of what)
 
 ```{r}
 sisyn %>% count(LTER, variable, sort = TRUE) %>% kable()

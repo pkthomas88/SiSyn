@@ -120,6 +120,8 @@ ggsave('DSivyear_points.png')
 
 Using lapply to get regression coefficients for each site (finally)
 
+found here https://stackoverflow.com/questions/27952653/how-to-loop-repeat-a-linear-regression-in-r
+
 ```{r}
 #set number of columns (i.e., sites)
 
