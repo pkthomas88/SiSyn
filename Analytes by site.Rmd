@@ -1,0 +1,146 @@
+---
+title: "Analytes by site"
+output: html_document
+---
+
+# Setup
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(knitr)
+library(psych)
+library(GGally)
+library(ggfortify)
+library(cluster)
+
+theme_set(theme_bw()+
+            theme(axis.text=element_text(size=8),
+  axis.title.x = element_text(size = 16),
+  axis.title.y = element_text(size = 16)))
+
+select <- dplyr::select
+```
+
+
+Make matrix of site vs counts of observations of each analyte - including ALL SITES
+
+```{r}
+
+sisyn <- read_csv("20201111_masterdata_RAW.csv")
+
+thematrix <- sisyn %>%
+  select(site, variable, value) %>%
+  count(site, variable, sort=TRUE) %>% 
+  pivot_wider(names_from = variable, values_from = n)%>% 
+  filter(!is.na(site)) %>% 
+  column_to_rownames(var="site")
+
+thematrix[is.na(thematrix)] <- 0 #turns NAs into zeros
+
+```
+
+>INSERT SAME^ BUT ONLY LONG TERM SITES
+
+# All sites - no filtering by length of record
+
+> Total # observations by analyte again
+
+```{r}
+sisyn %>% count(variable, sort = TRUE) %>% kable()
+```
+
+> # Observations of analyte by LTER
+
+```{r}
+sisyn %>% count(LTER, variable, sort = TRUE) %>% kable()
+#sisyn %>% count(LTER, site, variable, sort = TRUE) %>% kable()
+
+```
+
+## Correlations among some key analytes
+
+> There are 33 analytes so it's tricky to look at those all at once, but here's a subset of what should be important
+
+> Anyways, the point here is just more observations of one thing is correlated with more observations of other stuff within a site, and most sites that have lots of DSi data *usually* also have N and P data
+
+```{r}
+
+thematrix %>% 
+  select(DSi, NOx, NH4, PO4) %>% 
+  pairs.panels(scale = TRUE)
+
+thematrix %>% 
+  ggcorr()
+
+thematrix %>% 
+  select(DSi, NOx, NH4, PO4) %>% 
+  ggpairs()
+
+thematrix %>% 
+  select(DSi, NOx, SO4, DOC, NH4, PO4, TSS, TN, TP,
+         TDN, SRP, Suspended.Chl, DIN, VSS) %>% 
+  corr.test()
+
+```
+
+
+## PCA: clustering of analytes by site
+
+```{r}
+
+pca1 <- prcomp(thematrix)
+summary(pca1)
+autoplot(pca1)
+
+
+autoplot(fanny(pca1, frame = TRUE,label=TRUE))
+
+
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+# Only long term sites
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+
+
+```{r}
+
+```
+
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
