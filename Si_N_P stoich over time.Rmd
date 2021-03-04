@@ -163,7 +163,7 @@ ggplot(sisyn_annual, aes(year, meanSi_N, group = site))+
   geom_hline(yintercept = 1)
 ```
 
-
+## Si:P over time
 
 ```{r}
 ggplot(sisyn_annual, aes(year, meanSi_P, group=site))+

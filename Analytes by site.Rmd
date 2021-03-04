@@ -47,7 +47,7 @@ kable(head(thematrix))
 
 >INSERT SAME^ BUT ONLY LONG TERM SITES at some point to see if patterns are different at all
 
-# All sites - no filtering by length of record
+# Variable counts - all sites - no filtering by length of record
 
 > # Total # observations by analyte as we have seen before
 
@@ -130,7 +130,7 @@ autoplot(fanny(thematrix[3:35], 3), frame=TRUE, frame.type='norm', data = themat
 ```
 
 
-# Only long term sites
+# Variable counts - only long term sites
 
 > filtering to get just the LTERs we will mostly focus on with long-term data (I think)
 
