@@ -191,9 +191,51 @@ sisyn2 %>%
 ```
 
 
-# Do something to see which exact sites and days have DSI, NOx, PO4, SRP, and so on
+# Finding which sites have >15 years of DSi, NOx, PO4, SRP data
+
+
+> long data approach
 
 ```{r}
+# making year into its own column
+
+sisyn <- sisyn %>% 
+  mutate(sample.date=date(Sampling.Date)) %>%  
+  mutate(year=year(sample.date))
+
+si_range <- sisyn %>%
+  group_by(LTER, site, variable) %>% 
+  summarize(first_year=min(year), last_year=max(year),
+            num_observations = n()) %>% 
+  mutate(time_range = last_year-first_year) %>% 
+  mutate(obs_per_year=num_observations/time_range)
+
+ggplot(si_range, aes(time_range, num_observations))+
+  geom_point()
+
+long_term <- si_range %>% 
+  filter(time_range>14) %>% 
+  filter(variable %in% c("DSi", "NOx", "PO4", "SRP", "TN", "TP"))
+
+ggplot(long_term, aes(time_range, num_observations, color=LTER))+
+  geom_point()+
+  geom_smooth()+
+  facet_wrap(~variable, scales = 'free')
+
+long_term_wide <- long_term %>% 
+  pivot_wider(names_from = variable, values_from = c(time_range, num_observations, obs_per_year))
+
+
+long_term_wide2 <- long_term %>%
+  select(-first_year, -last_year) %>% 
+  pivot_wider(names_from = variable, values_from = c(time_range, num_observations, obs_per_year))
+
+long_term %>% group_by(variable) %>% 
+  summarize(sum(num_observations))
+
+#write.csv(long_term_wide, "long_term_wide.csv")
+#write.csv(long_term_wide2, "long_term_wide2.csv")
+
 
 ```
 
