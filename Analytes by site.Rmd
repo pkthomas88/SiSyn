@@ -233,9 +233,18 @@ long_term_wide2 <- long_term %>%
 long_term %>% group_by(variable) %>% 
   summarize(sum(num_observations))
 
+dim(long_term_wide2)
+
+long_term_wide2 %>% 
+  filter(is.na(time_range_TN)) %>% 
+  dim()
+long_term_wide2 %>% 
+  filter(is.na(time_range_TP)) %>% 
+  dim()
+
 #write.csv(long_term_wide, "long_term_wide.csv")
 #write.csv(long_term_wide2, "long_term_wide2.csv")
-
+#write.csv(long_term_wide2, "long_term_wide_TNTP.csv")
 
 ```
 
