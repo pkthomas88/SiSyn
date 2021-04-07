@@ -89,6 +89,19 @@ sisyn_annual <- sisyn_wide %>%
          CV_PO4 = sd_PO4/meanPO4)
 ```
 
+> making an object containing all the sites with >10 years of data
+
+```{r}
+si_annual_longterm <- sisyn_annual %>%
+  group_by(LTER, site) %>% 
+  summarize(first_year=min(year), last_year=max(year)) %>% 
+  mutate(time_range = last_year-first_year) %>%
+  filter(time_range>10)
+
+
+longtermsites <- unique(si_annual_longterm$site)
+```
+
 
 # Concentrations, ratios, and CVs by year and site
 
@@ -111,6 +124,8 @@ ggplot(sisyn_annual, aes(year, meanDSi, group=site))+
   theme(strip.text.x = element_text(size = 6))
 
 ```
+
+
 
 ## CV annual DSi
 
@@ -180,15 +195,16 @@ ggplot(sisyn_annual, aes(year, meanSi_P, group=site))+
   theme(strip.text.x = element_text(size = 6))
 ```
 
-# Extracting lots of slopes
+# lapply for extracting lots of slopes 
 
 
 ## DSi slopes over time
 
 ```{r}
-#making each column contain DSi conc for each site, since this is the only way I could figure out how to do >400 regressions at once
+#making each column contain DSi conc for each site, since this is the only way I could figure out how to do >400 regressions at once - AND selecting only long term sites
 
 sisyn_annual_wide_Si <- sisyn_annual %>% 
+  filter(site %in% longtermsites) %>%        # ONLY >10 YEAR SITES!
   select(year, LTER, site, meanDSi) %>% 
   filter(!is.na(meanDSi)) %>% 
   pivot_wider(names_from = site, values_from = meanDSi)
@@ -200,7 +216,7 @@ n <- 433
 
 #apply a linear regression for DSi vs year for all sites. the 'as.matrix' part was necessary to make it work, but I am still not totally sure why
 
-my_lms <- lapply(3:n, function(x) lm(as.matrix(sisyn_annual_wide_Si[,x]) ~ year, data=sisyn_annual_wide_Si))
+my_lms <- lapply(3:length(sisyn_annual_wide_Si), function(x) lm(as.matrix(sisyn_annual_wide_Si[,x]) ~ year, data=sisyn_annual_wide_Si))
 
 
 #extracting the slope and intercept from my_lms and turning it into a data frame
@@ -408,4 +424,161 @@ rquares <- sapply(summaries, function(x) c(r_sq = x$r.squared,
 pvals <- lapply(summaries, function(x) x$coefficients[, c(1,4)])
 
 ```
+
+# Loops for extracting correlations
+
+```{r}
+cols <- ncol(sisyn_annual_wide_Si)-2
+
+Correlations <- data.frame(site=character(length=rows), 
+                 correlation=numeric(length=rows), 
+                 stringsAsFactors=F) 
+
+for (i in 1:cols) {
+  temp1 <- colnames(sisyn_annual_wide_Si[i+2])       # retrieves the name of predictor variable
+  temp2 <- cor(sisyn_annual_wide_Si[,1], sisyn_annual_wide_Si[,i+2],
+               method="spearman",
+               use = "pairwise.complete.obs") # calculates the correlation between activity and predictor variable --> need to use "use" 
+  Correlations[i,1] <- temp1               # places the variable name into row i, column 1
+  Correlations[i,2] <- temp2                # places the correlation into row i, column 2
+}
+
+```
+
+
+
+```{r}
+
+si_corr <- left_join(Correlations, si_annual_longterm)
+
+```
+
+
+> plotting correlations as effect sizes
+
+```{r}
+
+give.n <- function(x){
+  return(c(y = mean(x), label = length(x)))
+}
+
+grandmean <- si_corr %>% 
+  summarize(mean=mean_cl_normal(correlation))
+
+A <- ggplot(si_corr, aes(LTER, correlation)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("correlation of DSi ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)
+  
+  
+  #stat_summary(data=grandmean, fun.data = mean, geom = "point")
+  
+
+#geom_polygon(aes())+
+  
+mean_corr <- mean(si_corr$correlation)
+
+me <- qt(.975, 86)*sd(si_corr$correlation)/87
+
+mean_cl_normal(si_corr$correlation)
+
+mean_corr-me
+```
+
+
+```{r}
+B <- sisyn_annual %>% filter(site %in% longtermsites) %>% 
+ggplot(aes(year, meanDSi))+
+  geom_line(group=site, stat="smooth", method="lm", se=FALSE, alpha=.5)+
+  facet_wrap(~LTER, scales = "free_y")+
+  scale_x_continuous(breaks=c(1980, 2000, 2020))+
+  theme(strip.text.x = element_text(size = 6))+
+  geom_smooth(method="lm")
+
+ggarrange(A,B)
+A
+
+### junk and tests
+
+>this actually worked! example with just UMR
+
+```{r}
+rows <- ncol(UMR_wide)-2
+
+Correlations <- data.frame(site=character(length=rows), 
+                 correlation=numeric(length=rows), 
+                 stringsAsFactors=F) 
+
+for (i in 1:rows) {
+  temp1 <- colnames(UMR_wide[i+2])       # retrieves the name of predictor variable
+  temp2 <- cor(UMR_wide[,1], UMR_wide[,i+2], method="spearman", use = "complete.obs")
+  temp3 <- UMR_wide[i,2]
+                                           # calculates the correlation between activity and predictor variable
+  Correlations[i,1] <- temp1               # places the variable name into row i, column 1
+  Correlations[i,2] <- temp2   
+  Correlations[i,3] <- temp3# places the correlation into row i, column 2
+}
+
+# a few of them (7 total) have NAs for 1996 so have to change the 'use' function in cor, e.g. to use = "complete.obs" or "pairwise.complete.obs" but these both seem to do exactly the same thing
+
+```
+
+
+```{r}
+# test with just UMR for now
+UMR <- filter(sisyn_annual, LTER=="UMR(Jankowski)")
+
+ggplot(UMR, aes(year, meanDSi))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE, aes(group = site))
+
+UMR_wide <- UMR %>% 
+  select(year, LTER, site, meanDSi) %>% 
+  filter(!is.na(meanDSi)) %>% 
+  pivot_wider(names_from = site, values_from = meanDSi)
+
+summary(UMR_wide)
+
+UMRsites <- unique(UMR$site)
+
+for(site in unique(UMR$site)){
+    print(site)
+}
+
+# just doing a play cor test to see what the components are called, I think in the end I would want estimate and conf.int
+a <- cor.test(UMR_wide$year, UMR_wide$CN00.1M)
+a
+summary(a)  
+  
+UMR_wide$year
+
+
+#UMR_wide <- UMR_wide[-1,]
+```
+
+ 
+>this didn't work
+
+```{r}
+#i is each site now
+for(i in unique(UMR$site)){
+  a <- cor.test(UMR$year, UMR$meanDSi)
+  print(paste(site, a$estimate))
+}
+
+#i is each site now
+for(i in 3:length(UMR_wide)){
+  a <- cor.test(UMR_wide$year, UMR_wide[,i])
+  print(paste(site, a$estimate))
+}
+
+
+```
+
+
 
