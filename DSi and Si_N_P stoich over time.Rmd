@@ -430,8 +430,8 @@ pvals <- lapply(summaries, function(x) x$coefficients[, c(1,4)])
 ```{r}
 cols <- ncol(sisyn_annual_wide_Si)-2
 
-Correlations <- data.frame(site=character(length=rows), 
-                 correlation=numeric(length=rows), 
+Correlations <- data.frame(site=character(length=cols), 
+                 correlation=numeric(length=cols), 
                  stringsAsFactors=F) 
 
 for (i in 1:cols) {
@@ -457,13 +457,11 @@ si_corr <- left_join(Correlations, si_annual_longterm)
 > plotting correlations as effect sizes
 
 ```{r}
-
+# function to give sample sizes (here, number of sites per LTER)
 give.n <- function(x){
   return(c(y = mean(x), label = length(x)))
 }
 
-grandmean <- si_corr %>% 
-  summarize(mean=mean_cl_normal(correlation))
 
 A <- ggplot(si_corr, aes(LTER, correlation)) + 
     stat_summary(fun = mean, geom = "point") + 
@@ -474,8 +472,7 @@ A <- ggplot(si_corr, aes(LTER, correlation)) +
   stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
   coord_flip()+
   scale_x_discrete(limits = rev)
-  
-  
+A  
   #stat_summary(data=grandmean, fun.data = mean, geom = "point")
   
 
@@ -488,22 +485,173 @@ me <- qt(.975, 86)*sd(si_corr$correlation)/87
 mean_cl_normal(si_corr$correlation)
 
 mean_corr-me
+
+
+meanCI <- si_corr %>% 
+  group_by(LTER) %>% 
+  summarize(poop=mean_cl_normal(correlation))
+
+grandmean <- si_corr %>% 
+  summarize(poop=mean_cl_normal(correlation))
+grandmean$LTER="Grand mean"
+
+meanCI <- bind_rows(grandmean, meanCI)
+
+ggplot(data=meanCI, mapping = aes(x=LTER, y = poop$y, ymax = poop$ymax, ymin = poop$ymin))+
+  geom_pointrange()+
+  coord_flip()+
+  geom_hline(yintercept = 0)+
+  ggtitle('why are these values different from the ones above????')
+
 ```
 
 
 ```{r}
 B <- sisyn_annual %>% filter(site %in% longtermsites) %>% 
-ggplot(aes(year, meanDSi))+
-  geom_line(group=site, stat="smooth", method="lm", se=FALSE, alpha=.5)+
+ggplot(aes(year, meanDSi, group=site))+
+  geom_line(stat="smooth", method="lm", se=FALSE, alpha=.5)+
   facet_wrap(~LTER, scales = "free_y")+
   scale_x_continuous(breaks=c(1980, 2000, 2020))+
-  theme(strip.text.x = element_text(size = 6))+
-  geom_smooth(method="lm")
-
+  theme(strip.text.x = element_text(size = 6))
+B
 ggarrange(A,B)
 A
+```
 
-### junk and tests
+
+#dplyr instead of loops
+
+> FIX SHITTY ANDREWS DATA BEFORE 1983
+
+```{r}
+
+sisyn_annual_longterm_wide <- sisyn_annual %>% 
+  filter(site %in% longtermsites)
+
+
+sisyn_annual_long <- sisyn_annual_longterm_wide %>% 
+  pivot_longer(cols = c(meanDSi:CV_PO4),
+               names_to = "analyte",
+               values_to = "conc")
+
+
+gp <- sisyn_annual_long %>% group_by(site, LTER, analyte)
+sisyn_corr_dplyr <- summarize(gp, ri=cor(year, conc, use = "pairwise.complete.obs"),
+                             ni=n())
+# sisyn_corr_dplyr2 <- summarize(gp, ri=cor(year, conc, use = "complete.obs"),
+#                              ni=n())
+# 
+# #there is no difference between pairwise.complete obs and complete.obs.......
+# poop <- bind_cols(sisyn_corr_dplyr, sisyn_corr_dplyr2)
+# ggplot(poop, aes(ri...3, ri...7))+
+#   geom_point()
+
+
+
+ggplot(sisyn_corr_dplyr, aes(LTER, ri)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("correlation of analyte or ratio ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)+
+  facet_wrap(~analyte)
+
+
+
+ggplot(sisyn_corr_dplyr, aes(analyte, ri)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("correlation of analyte or ratio ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)+
+  facet_wrap(~LTER)
+
+
+
+ggplot(sisyn_corr_dplyr, aes(LTER, ri)) +
+  geom_point()+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("correlation of analyte or ratio ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)+
+  facet_wrap(~analyte)
+
+```
+
+
+> Also checking the approaches here for using lms and also the suggestion for how to use nlme to deal with autocorrelation
+
+https://stackoverflow.com/questions/1169539/linear-regression-and-group-by-in-r
+
+> also here with updated info on using broom since they screwed that up recently
+
+https://stackoverflow.com/questions/22713325/fitting-several-regression-models-with-dplyr
+
+> and this seems to work, although some slope are totally nuts:
+
+```{r}
+
+fitted_models <-  sisyn_annual_long %>%
+  filter(!is.na(conc)) %>% 
+  group_by(site, LTER, analyte) %>%
+  do(model = tidy(lm(conc ~ year, data = .))) %>% # only works if you include the broom::tidy in here
+  unnest(model)
+
+
+fitted_models %>% 
+  filter(term=="year") %>% 
+  ggplot(aes(LTER, estimate)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("lm of analyte or ratio ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)+
+  facet_wrap(~analyte, scales = 'free')
+
+```
+
+> nlme thing needs work, but maybe add autocorrelation to above iteration?
+
+```{r eval=FALSE, include=FALSE}
+library(nlme)
+fit <- nlme(data=sisyn_annual_longterm_wide, meanDSi ~ year, random = ~year|site, correlation = corAR1(~year))
+```
+
+```{r}
+knitr::knit_exit()
+```
+
+
+
+# junk and tests
+
+
+> code copied from here which is actually super useful about doing forest plots in ggplot
+
+[link][https://ecologyforacrowdedplanet.wordpress.com/2013/05/10/using-metafor-and-ggplot-togetherpart-1/]
+
+```{r eval=FALSE, include=FALSE}
+theme_set(theme_bw(base_size=10))
+
+forrest_data<-rbind(data.frame(ES=ROM.ma$yi,SE=sqrt(ROM.ma$vi),Type="Study",Study=logging$Study),data.frame(ES=ROM.ma$b,SE=ROM.ma$se,Type="Summary",Study="Summary"))
+forrest_data$Study2<-factor(forrest_data$Study, levels=rev(levels(forrest_data$Study)) )
+levels(forrest_data$Study2)
+plot1<-ggplot(data=forrest_data,aes(x=Study2,y=ES,ymax=ES+(1.96*SE),ymin=ES-(1.96*SE),size=factor(Type),colour=factor(Type)))+geom_pointrange()
+plot2<-plot1+coord_flip()+geom_hline(aes(x=0), lty=2,size=1)+scale_size_manual(values=c(0.5,1))
+plot3<-plot2+xlab("Study")+ylab("log response ratio")+scale_colour_manual(values=c("grey","black"))
+plot3+theme(legend.position="none")
+```
 
 >this actually worked! example with just UMR
 
