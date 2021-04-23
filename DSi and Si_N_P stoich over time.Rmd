@@ -628,6 +628,14 @@ library(nlme)
 fit <- nlme(data=sisyn_annual_longterm_wide, meanDSi ~ year, random = ~year|site, correlation = corAR1(~year))
 ```
 
+
+# TO DO
+
+- check Dornelas 2014 methods for slope of diversity over time for many sites
+- plot slopes by biome in forest plots
+- meta-regression for what would explain slopes (latitude, land cover, etc)
+
+
 ```{r}
 knitr::knit_exit()
 ```
