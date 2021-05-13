@@ -1,10 +1,17 @@
 ---
-title: "DSi and Si/N/P stoich over time"
-output: html_document
+
+title: "DSi and Si:N:P stoich over time"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    collapsed: false
+    
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(broom)
 library(ggridges)
@@ -122,6 +129,24 @@ ggplot(sisyn_annual, aes(year, meanDSi, group=site))+
   facet_wrap(~LTER, scales = "free_y")+
   scale_x_continuous(breaks=c(1980, 2000, 2020))+
   theme(strip.text.x = element_text(size = 6))
+
+ggplot(sisyn_annual, aes(year, meanDSi))+
+  geom_point(alpha=0.2)+
+  stat_smooth(geom='line', method = 'lm', se=FALSE, alpha=0.5, aes(group = site, color = LTER))+
+  geom_smooth(se=FALSE, col="red", method = "lm")+
+  #stat_smooth(geom='line', se=FALSE, alpha=2, aes(group=LTER, color = LTER))+
+  scale_x_continuous(breaks=c(1980, 2000, 2020))+
+  scale_y_log10()+
+  theme(strip.text.x = element_text(size = 6))+
+  geom_hline(yintercept = 1)
+
+ggplot(sisyn_annual, aes(year, meanDSi, group = LTER))+
+  geom_point(alpha=0.2)+
+  geom_smooth(method = 'lm', se=FALSE, aes(color = LTER))+
+  scale_x_continuous(breaks=c(1980, 2000, 2020))+
+  scale_y_log10()+
+  theme(strip.text.x = element_text(size = 6))+
+  geom_hline(yintercept = 1)
 
 ```
 
@@ -437,7 +462,7 @@ Correlations <- data.frame(site=character(length=cols),
 for (i in 1:cols) {
   temp1 <- colnames(sisyn_annual_wide_Si[i+2])       # retrieves the name of predictor variable
   temp2 <- cor(sisyn_annual_wide_Si[,1], sisyn_annual_wide_Si[,i+2],
-               method="spearman",
+               method="pearson", #change this to spearman???
                use = "pairwise.complete.obs") # calculates the correlation between activity and predictor variable --> need to use "use" 
   Correlations[i,1] <- temp1               # places the variable name into row i, column 1
   Correlations[i,2] <- temp2                # places the correlation into row i, column 2
@@ -519,7 +544,7 @@ A
 ```
 
 
-#dplyr instead of loops
+# dplyr instead of loops
 
 > FIX SHITTY ANDREWS DATA BEFORE 1983
 
@@ -546,7 +571,18 @@ sisyn_corr_dplyr <- summarize(gp, ri=cor(year, conc, use = "pairwise.complete.ob
 # ggplot(poop, aes(ri...3, ri...7))+
 #   geom_point()
 
-
+C <-sisyn_corr_dplyr %>% 
+  filter(analyte =="meanDSi") %>% 
+  ggplot(aes(LTER, ri)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("correlation of DSi ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)
+C
 
 ggplot(sisyn_corr_dplyr, aes(LTER, ri)) + 
     stat_summary(fun = mean, geom = "point") + 
@@ -605,6 +641,24 @@ fitted_models <-  sisyn_annual_long %>%
   do(model = tidy(lm(conc ~ year, data = .))) %>% # only works if you include the broom::tidy in here
   unnest(model)
 
+# lm slopes for just DSi
+
+D <- fitted_models %>% 
+  filter(term=="year", analyte == "meanDSi") %>% 
+  ggplot(aes(LTER, estimate)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("lm slope of DSi ~ year")+
+  stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)
+D
+
+# compare correlations 
+ggarrange(A, C)
+ggarrange(C,D)
 
 fitted_models %>% 
   filter(term=="year") %>% 
