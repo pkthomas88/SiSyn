@@ -38,7 +38,16 @@ sisyn <- sisyn %>%
   mutate(month = month(Sampling.Date)) %>% 
   mutate(year = year(Sampling.Date))
 
-#unique(sisyn$variable)
+imnavait <- read_csv("Imnavait WeirContSi_WRTDS.csv") %>% 
+  select(Date, ConcDay) %>% 
+  mutate(site="Imnavait Weir_ContSi", variable ="DSi", LTER = 'ARC_ContSi') %>% 
+  rename(value = ConcDay, Sampling.Date = Date) %>% 
+  mutate(month = month(Sampling.Date)) %>% 
+  mutate(year = year(Sampling.Date))
+
+sisyn <- bind_rows(sisyn, imnavait)
+
+#unique(sisyn$site)
 
 latlongs <- read_csv("LongTermWatersheds_LatLong.csv") %>% 
   rename(site=Stream.Site)
@@ -48,8 +57,9 @@ longtermsites <- unique(latlongs$site)
 
 #sisyn %>% count(variable, sort = TRUE) %>% kable()
 
-#sisyn %>%
-# distinct(LTER, site) %>% kable()
+sisyn %>%
+  filter(site %in% longtermsites) %>% 
+ distinct(LTER, site) %>% kable()
 
 luqtest <- sisyn %>%
   filter(site=="MPR", variable =="DSi")
@@ -170,6 +180,7 @@ sisynindex <- left_join(sisynmonthly, sisynannual)
 > **Here's the main chunk of code to look at, since this calculates the actual seasonality index for all our data**
 
 ```{r echo = TRUE}
+
 sisynindex <- sisynindex %>% 
   mutate(monthly_dev = abs(monthly_avg - grand_avg)) %>%
   mutate(sum_dev = sum(monthly_dev)) %>%
@@ -178,6 +189,20 @@ sisynindex <- sisynindex %>%
   distinct(LTER, site, variable, seas_index)
 
 ```
+
+
+> checking how using the interpolated Si data changes the SI (a lot)
+
+```{r}
+
+sisynindex %>% 
+  filter(LTER %in% c("ARC", "ARC_ContSi"), 
+         variable =="DSi", site %in% c(longtermsites, "Imnavait Weir_ContSi")) %>% 
+  ggplot(aes(site, seas_index))+
+  geom_bar(stat = 'identity')
+
+```
+
 
 # plots!
 
@@ -188,7 +213,7 @@ sisynindex <- sisynindex %>%
 ```{r}
 
 sisynindex %>% 
-  filter(variable=="DSi", site %in% longtermsites) %>% 
+  filter(variable=="DSi", site %in% longtermsites) %>%
   ggplot(aes(LTER, seas_index))+
   stat_summary(fun = mean, geom = "point") + 
   stat_summary(fun.data = mean_cl_normal, size=1.5, geom = "pointrange", fun.args = list(mult = 1))+
@@ -437,6 +462,48 @@ seas_slopes %>%
 
 
 ```
+
+
+
+
+# a super quick attempt at looking at how monthly averages have changed over time for each month and site, to get at whether certain months are increasing or decreasing
+
+```{r}
+
+sisynmonthly <- sisyn %>%
+  filter(variable=='DSi') %>% 
+  group_by(LTER, site, month, year) %>% 
+  summarize(monthly_avg = mean(value))
+
+#this didn't work:
+# fitted_models <-  sisynmonthly %>%
+#   filter(site %in% longtermsites) %>%
+#   filter()
+#   group_by(site, month) %>%
+#   do(model = tidy(cor.test(~year + monthly_avg, meth ="kendall", use="pairwise.complete.obs", data = .))) %>% # only works if you include the broom::tidy in here
+#   unnest(model)
+  
+  
+mktests <- sisynmonthly %>%
+  filter(site %in% longtermsites) %>% 
+  group_by(LTER, site, month) %>% 
+  summarize(trend=cor(year, monthly_avg, method = "kendall"), ni=n())
+
+
+ggplot(mktests, aes(as.factor(month), trend))+
+  #geom_point()+
+  facet_wrap(~LTER)+
+  geom_hline(yintercept = 0)+
+  stat_summary(fun = mean, geom = "point") + 
+  stat_summary(fun.data = mean_cl_normal, size = 1, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_point(alpha=0.5, color = "#218D3A")+
+  coord_flip()+
+  scale_x_discrete(limits=rev)
+  
+
+```
+
+
 
 
 # Refs

@@ -89,7 +89,8 @@ sisyn_annual <- sisyn_wide %>%
             sd_PO4 = sd(PO4, na.rm=TRUE),
             meanSi_N = mean(Si_N, na.rm=TRUE),
             meanSi_P = mean(Si_P, na.rm=TRUE),
-            meanN_P = mean(N_P)) %>% 
+            meanN_P = mean(N_P),
+            mean_temp=mean(Temp.C)) %>% 
   mutate(site = str_replace_all(site, " ", "_"),
          CV_DSi = sd_DSi/meanDSi,
          CV_NOx = sd_NOx/meanNOx,
