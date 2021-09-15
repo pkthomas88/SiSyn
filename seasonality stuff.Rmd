@@ -3,8 +3,9 @@ title: "Figuring out how to quantify seasonality index"
 output: 
   html_document:
     toc: true
+    number_sections: true
     toc_float:
-      collapsed: false
+      collapsed: true
 ---
 
 # setup
@@ -28,7 +29,7 @@ theme_set(theme_bw()+
 
 ```
 
-> load data, create a couple simple time series from subset of 2 sites from LUQ and UMR
+> load  master dataset, create a couple simple time series from subset of 2 sites from LUQ and UMR
 
 ```{r include=FALSE}
 sisyn <- read_csv("20210804_masterdata.csv")
@@ -158,7 +159,19 @@ unique(umrindex$seasonality_index)
 
 ```
 
-# calculating SI for all sites
+
+***
+
+/
+
+/
+
+/
+
+***
+
+
+# !! using MASTER dataset/noncontinuous Si data !! calculating SI for all sites
 
 >similar to the above test code but grouping by LTER, site, variable to get monthly averages
 
@@ -203,8 +216,6 @@ sisynindex %>%
 
 ```
 
-
-# plots!
 
 ## DSi seasonality by LTER
 
@@ -253,6 +264,7 @@ sisynindex %>%
   coord_flip()+
   scale_x_discrete(limits=rev)+
   facet_wrap(~variable, scales = 'free')
+
 ```
 
 
@@ -394,7 +406,7 @@ sisynindex_latlong %>%
 
 
 
-# A quick look at "annual seasonality" - monthly deviations for each year instead of from the grand mean across years, to see if this tells us anything about changes in seasonality over time
+## A quick look at "annual seasonality" - monthly deviations for each year instead of from the grand mean across years, to see if this tells us anything about changes in seasonality over time
 
 
 ```{r echo = TRUE}
@@ -466,7 +478,7 @@ seas_slopes %>%
 
 
 
-# a super quick attempt at looking at how monthly averages have changed over time for each month and site, to get at whether certain months are increasing or decreasing
+## a super quick attempt at looking at how monthly averages have changed over time for each month and site, to get at whether certain months are increasing or decreasing
 
 ```{r}
 
@@ -503,6 +515,366 @@ ggplot(mktests, aes(as.factor(month), trend))+
 
 ```
 
+
+
+# !! using daily WRTDS output dataset/continuous Si data !! calculating SI for all sites
+
+> For this I have just copied in the above code used for the 'master dataset' 
+
+> Import data for WRTDS daily results
+
+```{r}
+
+wrtds <- read_csv("WRTDS_DailyResults_AllSites_052621.csv")
+
+wrtds <- wrtds %>%
+  mutate(month = month(dates)) %>% 
+  mutate(year = year(dates)) %>% 
+  rename(site = name) %>% 
+  select(Q, ConcDay:year) # simplifying things here, but include more columns if needed
+
+sites <- sisyn %>% distinct(LTER, site)
+
+wrtds <- left_join(wrtds, sites)
+
+head(wrtds)
+
+wrtds_long <- wrtds %>% 
+  pivot_longer(cols = c(Q:FNFlux),
+               names_to = "variable",
+               values_to = "value")
+
+```
+
+```{r echo = TRUE}
+# summarize Si by monthly average
+wrtdsmonthly <- wrtds_long %>% 
+  group_by(LTER, site, variable, month) %>% 
+  summarize(monthly_avg = mean(value))
+
+# summarize Si by overall average
+wrtdsannual <- wrtds_long %>%
+  group_by(LTER, site, variable) %>%
+  summarize(grand_avg = mean(value))
+
+#join grand mean values to monthly averages
+wrtdsindex <- left_join(wrtdsmonthly, wrtdsannual)
+```
+
+> **Here's the main chunk of code to look at, since this calculates the actual seasonality index for all our data**
+
+```{r echo = TRUE}
+
+wrtdsindex <- wrtdsindex %>% 
+  mutate(monthly_dev = abs(monthly_avg - grand_avg)) %>%
+  mutate(sum_dev = sum(monthly_dev)) %>%
+  mutate(LTER, site, variable) %>% 
+  mutate(wrtds_seas_index=sum_dev/grand_avg) %>% 
+  distinct(LTER, site, variable, wrtds_seas_index)
+
+```
+
+> Need to figure out why these NAs are here!
+
+```{r}
+
+summary(wrtdsindex)
+
+hmm <- wrtds_long %>% count(LTER, site, variable)
+
+```
+
+
+## DSi seasonality by LTER
+
+> a couple ways to look at SI for DSi from long term sites, looks way better than the non-continuous data!
+
+```{r}
+
+A <- wrtdsindex %>% 
+  filter(variable=="ConcDay") %>%
+  ggplot(aes(LTER, wrtds_seas_index))+
+  stat_summary(fun = mean, geom = "point") + 
+  stat_summary(fun.data = mean_cl_normal, size=1.5, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_point(alpha=0.5, color = "#218D3A")+
+  coord_flip()+
+  scale_x_discrete(limits=rev)#+
+  ylab('seasonality index for daily DSi conc')
+
+A
+
+wrtdsindex %>% 
+  filter(variable=="ConcDay", site %in% longtermsites) %>% 
+  ggplot(aes(wrtds_seas_index, LTER))+
+  geom_density_ridges(fill = "#218D3A")+
+  scale_y_discrete(limits=rev)
+
+# 
+# # data from 
+# B <- sisynindex %>% 
+#   filter(variable=="DSi", site %in% longtermsites) %>%
+#   ggplot(aes(LTER, seas_index))+
+#   stat_summary(fun = mean, geom = "point") + 
+#   stat_summary(fun.data = mean_cl_normal, size=1.5, geom = "pointrange", fun.args = list(mult = 1))+
+#   geom_point(alpha=0.5, color = "#218D3A")+
+#   coord_flip()+
+#   scale_x_discrete(limits=rev)
+# 
+# ggarrange(A,B)
+
+
+```
+
+
+
+
+***
+
+
+
+## seasonality of DSi, discharge, flux
+
+```{r}
+#unique(wrtdsindex$variable)
+#unique(wrtdsindex$LTER)
+
+wrtdsindex %>% 
+  filter(variable %in% c("ConcDay",  "Q", "FluxDay")) %>%
+  ggplot(aes(LTER, wrtds_seas_index))+
+  stat_summary(fun = mean, geom = "point") + 
+  stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_point(alpha=0.5, color = "#218D3A")+
+  coord_flip()+
+  scale_x_discrete(limits=rev)+
+  facet_wrap(~variable, scales = 'free')
+
+```
+
+
+
+> checking again on the LTERs with data interpolated for winter, looks better with this data but something weird with MCM having data for july and august for everything besides Q....????
+
+```{r}
+
+wrtds_long %>% 
+  filter(LTER=="ARC") %>% 
+  ggplot(aes(as.factor(month), value, fill = site))+
+  geom_boxplot()+
+  facet_wrap(~variable, scales = 'free')
+
+wrtds_long %>% 
+  filter(LTER=="MCM") %>% 
+  ggplot(aes(as.factor(month), value,  fill = site))+
+  geom_boxplot()+
+  facet_wrap(~variable, scales = 'free')
+
+
+wrtds_long %>% 
+  filter(LTER=="Sagehen(Sullivan)") %>% 
+  ggplot(aes(as.factor(month), value,  fill = site))+
+  geom_boxplot()+
+  facet_wrap(~variable, scales = 'free')
+
+```
+
+
+
+***
+
+
+
+## maps and latitude effects on seasonality index
+
+> Sagehen should still be in the correct hemisphere now
+
+> also this lat-long data doesn't include our most up to date list of long term sites so need to change that at some point
+
+```{r include=FALSE}
+
+leaflet(latlongs) %>%
+  addTiles() %>% 
+  addMarkers(lng = ~Longitude, lat = ~Latitude, popup = ~ LTER)
+
+#latlongs <- latlongs %>% 
+#  mutate(Longitude = ifelse(LTER=='Sagehen', -Longitude, Longitude))
+
+leaflet(latlongs) %>%
+  addTiles() %>% 
+  addMarkers(lng = ~Longitude, lat = ~Latitude, popup = ~ LTER)
+
+
+
+a <- unique(wrtdsindex$site) #usi this to check where there are differences in the colnames
+b <- unique(latlongs$site)
+setdiff(b,a)
+b %in% a
+which(a %in% b)
+# so at least everything in the long term site list is also named the same as the SI index etc
+
+```
+
+> SI for DSi concentration
+
+```{r}
+# join the SI index to latlong data
+wrtdsindex_latlong <- left_join(latlongs, wrtdsindex, by='site') %>% 
+  filter(variable == "ConcDay") # just change this filter and run chunk for other variables
+
+#summary(wrtdsindex_latlong)
+
+
+pal <- colorBin(palette = "GnBu", bins = c(0,1,2,3,4,5,6,7,8), domain = wrtdsindex_latlong$wrtds_seas_index, reverse = TRUE)
+
+
+leaflet(wrtdsindex_latlong) %>%
+  addTiles() %>% 
+  addCircleMarkers(lng = ~Longitude,
+             lat = ~Latitude,
+             #popup = ~ LTER.x,
+             color="black",
+             stroke=TRUE,
+             fillColor = ~pal(wrtds_seas_index),
+             fillOpacity = 10,
+             opacity = .5,
+             label = ~paste0(wrtdsindex_latlong$LTER.x,"::", wrtdsindex_latlong$site, ", Seasonality index: ", wrtds_seas_index),
+             radius = 10) %>% 
+  addLegend(position = "bottomleft",
+                  pal = pal,
+                  values = range(wrtdsindex_latlong$wrtds_seas_index),
+                  title = "Seasonality index for DSi concentration")
+
+```
+
+
+> Ok, this makes a lot more sense now with this data- seasonality is very nicely correlated with DSi conc, flux, and discharge (would be a red flag if this weren't the case)
+
+```{r}
+wrtdsindex_latlong <- left_join(latlongs, wrtdsindex, by='site')
+
+wrtdsindex_latlong %>% 
+  filter(variable %in% c("ConcDay", "Q", "FluxDay")) %>% 
+  ggplot(aes(abs(Latitude), wrtds_seas_index))+
+  geom_point(aes(color=LTER.x))+
+  geom_smooth(method = 'lm')+
+  facet_wrap(~variable)
+
+```
+
+
+
+## A quick look at "annual seasonality" - monthly deviations for each year instead of from the grand mean across years, to see if this tells us anything about changes in seasonality over time
+
+
+```{r echo = TRUE}
+# summarize Si by monthly average
+wrtdsmonthly <- wrtds_long %>% 
+  group_by(LTER, site, variable, year, month) %>% 
+  summarize(monthly_avg = mean(value))
+
+# summarize Si by overall average
+wrtdsannual <- wrtds_long %>%
+  group_by(LTER, site, year, variable) %>%
+  summarize(annual_avg = mean(value))
+
+#join grand mean values to monthly averages
+wrtdsindex <- left_join(wrtdsmonthly, wrtdsannual)
+
+wrtdsindex_annual <- wrtdsindex %>%
+  mutate(monthly_dev = abs(monthly_avg - annual_avg)) %>%
+  group_by(LTER, site, variable, year) %>% 
+  summarize(sum_dev = sum(monthly_dev),
+            wrtds_seas_index = unique(sum_dev/annual_avg)) #
+  
+```
+
+> a couple ways to visualize if within-year seasonality changes over time
+
+```{r}
+wrtdsindex_annual %>% 
+ filter(site %in% longtermsites, variable %in% c("ConcDay", "Q", "FluxDay")) %>% 
+  ggplot(aes(year, wrtds_seas_index))+
+  geom_point(aes(color=LTER))+
+  geom_smooth(aes(color=LTER), method ='lm', se= FALSE)+
+  geom_smooth(color = 'black', method ='lm', se= T, size = 1.5)+
+  facet_wrap(~variable)
+
+wrtdsindex_annual %>% 
+ filter(site %in% longtermsites, variable %in% c("ConcDay", "Q", "FluxDay")) %>% 
+  ggplot(aes(year, wrtds_seas_index))+
+  geom_point(aes(color=LTER))+
+  geom_smooth(aes(color=LTER), method ='lm', se= FALSE)+
+  facet_grid(LTER~variable, scales = 'free')
+
+```
+
+> and then calculating + plotting slopes of the seasonality index over time
+
+```{r}
+#regressions:
+seas_slopes <-  wrtdsindex_annual %>%
+  filter(!is.na(wrtds_seas_index), variable=="ConcDay") %>% 
+  group_by(site, LTER, variable) %>%
+  do(model = tidy(lm(wrtds_seas_index ~ year, data = .))) %>% # only works if you include the broom::tidy in here
+  unnest(model)
+
+seas_slopes %>% 
+  filter(term=="year") %>% 
+  ggplot(aes(LTER, estimate)) + 
+    stat_summary(fun = mean, geom = "point") + 
+    stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_hline(yintercept = 0)+
+  xlab("LTER")+
+  ylab("slope of DSi seasonality index ~ year")+
+  #stat_summary(fun.data = give.n, geom = "text", size=3, fontface="italic", position = position_nudge(x = 0.4, y=.1))+
+  coord_flip()+
+  scale_x_discrete(limits = rev)
+
+
+```
+
+
+
+
+## a super quick attempt at looking at how monthly averages have changed over time for each month and site, to get at whether certain months are increasing or decreasing
+
+```{r}
+
+wrtdsmonthly <- wrtds_long %>%
+  filter(variable=='ConcDay') %>% 
+  group_by(LTER, site, month, year) %>% 
+  summarize(monthly_avg = mean(value))
+
+#this didn't work:
+# fitted_models <-  wrtdsmonthly %>%
+#   filter(site %in% longtermsites) %>%
+#   filter()
+#   group_by(site, month) %>%
+#   do(model = tidy(cor.test(~year + monthly_avg, meth ="kendall", use="pairwise.complete.obs", data = .))) %>% # only works if you include the broom::tidy in here
+#   unnest(model)
+  
+  
+mktests <- wrtdsmonthly %>%
+  #filter(site %in% longtermsites) %>% 
+  group_by(LTER, site, month) %>% 
+  summarize(trend=cor(year, monthly_avg, method = "kendall"), ni=n())
+
+
+ggplot(mktests, aes(as.factor(month), trend))+
+  #geom_point()+
+  facet_wrap(~LTER)+
+  geom_hline(yintercept = 0)+
+  stat_summary(fun = mean, geom = "point") + 
+  stat_summary(fun.data = mean_cl_normal, size = 1, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_point(alpha=0.5, color = "#218D3A")+
+  coord_flip()+
+  scale_x_discrete(limits=rev)+
+  ylab('trend estimate for each month/site')
+  
+
+```
+
+# TO DO
+-figure out zeros for Sagehen etc
 
 
 
