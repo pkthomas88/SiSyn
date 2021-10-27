@@ -21,6 +21,19 @@ library(ggpubr)
 library(ggridges)
 library(leaflet)
 library(broom)
+library(metafor)
+library(trend)
+
+jevergreen <- "#218D3A"
+jever2color <- c("#218D3A", "#E2C171")
+
+jever3color <- c("#E2C171","#218D3A", "#297C8C")
+
+jever4color <- c("#297C8C", "#5792D0", "#116D2B", "#E2C171")
+
+
+jever4color_andblack <- c("#297C8C", "#5792D0", "#116D2B", "#E2C171", "black")
+
 
 theme_set(theme_bw()+
             theme(axis.text=element_text(size=8),
@@ -531,7 +544,7 @@ wrtds <- wrtds %>%
   mutate(month = month(dates)) %>% 
   mutate(year = year(dates)) %>% 
   rename(site = name) %>% 
-  select(Q, ConcDay:year) # simplifying things here, but include more columns if needed
+  dplyr::select(Q, ConcDay:year) # simplifying things here, but include more columns if needed
 
 sites <- sisyn %>% distinct(LTER, site)
 
@@ -796,14 +809,16 @@ wrtdsindex_annual %>%
   geom_point(aes(color=LTER))+
   geom_smooth(aes(color=LTER), method ='lm', se= FALSE)+
   geom_smooth(color = 'black', method ='lm', se= T, size = 1.5)+
-  facet_wrap(~variable)
+  facet_wrap(~variable)+
+  ggtitle('this is a bad way to plot it, + slope due to diff LTERS')
 
 wrtdsindex_annual %>% 
  filter(site %in% longtermsites, variable %in% c("ConcDay", "Q", "FluxDay")) %>% 
   ggplot(aes(year, wrtds_seas_index))+
   geom_point(aes(color=LTER))+
   geom_smooth(aes(color=LTER), method ='lm', se= FALSE)+
-  facet_grid(LTER~variable, scales = 'free')
+  facet_grid(LTER~variable, scales = 'free')+
+  ggtitle('maybe some interesting increases/decreases for some spots here?')
 
 ```
 
@@ -812,13 +827,14 @@ wrtdsindex_annual %>%
 ```{r}
 #regressions:
 seas_slopes <-  wrtdsindex_annual %>%
-  filter(!is.na(wrtds_seas_index), variable=="ConcDay") %>% 
+  #filter(!is.na(wrtds_seas_index), variable=="ConcDay") %>% 
   group_by(site, LTER, variable) %>%
-  do(model = tidy(lm(wrtds_seas_index ~ year, data = .))) %>% # only works if you include the broom::tidy in here
+  do(model = tidy(lm(wrtds_seas_index ~ year, data = .), conf.int=TRUE)) %>% # only works if you include the broom::tidy in here
   unnest(model)
 
 seas_slopes %>% 
   filter(term=="year") %>% 
+  filter(variable =="ConcDay")%>%
   ggplot(aes(LTER, estimate)) + 
     stat_summary(fun = mean, geom = "point") + 
     stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult = 1))+
@@ -829,6 +845,89 @@ seas_slopes %>%
   coord_flip()+
   scale_x_discrete(limits = rev)
 
+seas_slopes%>%
+  filter(term=="year", variable %in% c("ConcDay", "Q", "FluxDay"))%>%
+  ggplot(aes(fill = LTER, x = paste(LTER, site, sep = "::"), y = estimate, ymin = conf.low, ymax=conf.high))+
+  geom_pointrange(color="black", shape = 21, size = 2)+
+  scale_x_discrete(limits = rev)+
+  coord_flip()+
+  geom_hline(yintercept = 0, linetype="dashed")+
+  theme(axis.text=element_text(size=16))+
+  # scale_color_manual(values = jever2color)+
+  # scale_fill_manual(values = jever2color)+
+  facet_wrap(~variable)+
+  #scale_size_manual(values=c(1,1.5))+
+  #scale_shape_manual(values = c(21, 22))+
+  xlab("site")+
+  ylab("Slope of annual seasonality change")
+
+seas_slopes%>%arrange(estimate)
+
+seas_ma <- rma(estimate, std.error, data = filter(seas_slopes, term =="year"), mods = ~LTER)
+
+seas_ma <- rma(estimate, std.error, data = filter(seas_slopes, term =="year"))
+
+summary(seas_ma)
+forest(seas_ma)
+
+```
+
+```{r}
+
+mafits_seas <-  seas_slopes %>%
+  filter(term=="year") %>% 
+  group_by(LTER, variable) %>% #group by type of nutrient manipulation and broad response
+  do(model = tidy(rma(estimate, std.error, data = .), conf.int=TRUE)) %>% #do weighted meta-analysis for each grouping
+  unnest(model)
+  #mutate(ci.lb=estimate-(1.96*std.error), ci.ub = estimate+(1.96*std.error)) %>% #calculate 95% CIs
+
+num_obs <- seas_slopes %>% 
+filter(term=="year")%>%
+  group_by(LTER, variable) %>%
+  summarize(num_obs=length(estimate), mean_estimate=mean(estimate))
+mafits_seas
+num_obs
+
+mafits_seas <- left_join(mafits_seas, num_obs)
+
+mafits_seas%>%
+  filter(variable %in% c("ConcDay"))%>%
+  ggplot(aes(x = LTER, y = estimate, ymin = conf.low, ymax=conf.high))+
+  geom_pointrange(color="black", shape = 21, size = 1.8, fill = "#218D3A")+
+  scale_x_discrete(limits = rev)+
+  coord_flip()+
+  geom_hline(yintercept = 0, linetype="dashed")+
+  geom_text(size=4, fontface="italic", position = position_nudge(x = 0.25, y=.15),
+            aes(label = num_obs))+
+  theme(axis.text=element_text(size=16))+
+  scale_color_manual(values = jever2color)+
+  scale_fill_manual(values = jever2color)+
+  #facet_wrap(~variable)+
+  #scale_size_manual(values=c(1,1.5))+
+  #scale_shape_manual(values = c(21, 22))+
+  xlab("LTER")+
+  ylab("Slope of annual seasonality change for DSi")
+#ggsave("seasonality_annual_weighted.png")
+
+
+mafits_seas%>%
+  filter(variable %in% c("ConcDay", "Q", "FluxDay"))%>%
+  ggplot(aes(x = LTER, y = estimate, ymin = conf.low, ymax=conf.high))+
+  geom_pointrange(color="black", shape = 21, size = 1.8, fill = "#218D3A")+
+  scale_x_discrete(limits = rev)+
+  coord_flip()+
+  geom_hline(yintercept = 0, linetype="dashed")+
+  geom_text(size=4, fontface="italic", position = position_nudge(x = 0.25, y=.15),
+            aes(label = num_obs))+
+  theme(axis.text=element_text(size=16))+
+  scale_color_manual(values = jever2color)+
+  scale_fill_manual(values = jever2color)+
+  facet_wrap(~variable)+
+  #scale_size_manual(values=c(1,1.5))+
+  #scale_shape_manual(values = c(21, 22))+
+  xlab("LTER")+
+  ylab("Slope of annual seasonality change")
+ggsave("seasonality_annual_weighted_conq-Q-flx.png")
 
 ```
 
@@ -840,8 +939,8 @@ seas_slopes %>%
 ```{r}
 
 wrtdsmonthly <- wrtds_long %>%
-  filter(variable=='ConcDay') %>% 
-  group_by(LTER, site, month, year) %>% 
+  #filter(variable=='ConcDay') %>% 
+  group_by(LTER, site, month, year, variable) %>% 
   summarize(monthly_avg = mean(value))
 
 #this didn't work:
@@ -855,11 +954,18 @@ wrtdsmonthly <- wrtds_long %>%
   
 mktests <- wrtdsmonthly %>%
   #filter(site %in% longtermsites) %>% 
-  group_by(LTER, site, month) %>% 
+  group_by(LTER, site, month, variable) %>% 
   summarize(trend=cor(year, monthly_avg, method = "kendall"), ni=n())
 
 
-ggplot(mktests, aes(as.factor(month), trend))+
+mktests2 <- wrtdsmonthly %>%
+  group_by(LTER, site, month, variable) %>%
+  do(model = tidy(lm(monthly_avg ~ year, data = .), conf.int=TRUE)) %>%
+  unnest(model)
+
+mktests%>%
+  filter(variable=="ConcDay")%>%
+  ggplot(aes(as.factor(month), trend))+
   #geom_point()+
   facet_wrap(~LTER)+
   geom_hline(yintercept = 0)+
@@ -871,7 +977,42 @@ ggplot(mktests, aes(as.factor(month), trend))+
   ylab('trend estimate for each month/site')
   
 
+mktests2%>%
+  filter(term=="year", variable=="ConcDay")%>%
+  ggplot(aes(as.factor(month), estimate))+
+  #geom_point()+
+  facet_wrap(~LTER, scales = 'free')+
+  geom_hline(yintercept = 0)+
+  stat_summary(fun = mean, geom = "point") + 
+  stat_summary(fun.data = mean_cl_normal, size = 1, geom = "pointrange", fun.args = list(mult = 1))+
+  geom_point(alpha=0.5, color = "#218D3A")+
+  coord_flip()+
+  scale_x_discrete(limits=rev)+
+  ylab('trend estimate for each month/site')
+
 ```
+
+```{r}
+
+knitr::knit_exit()
+
+```
+
+> try to fix this!!
+
+```{r}
+
+mktests3 <- wrtdsmonthly %>%
+  #filter(site %in% longtermsites) %>% 
+  group_by(LTER, site, month, variable) %>% 
+  do(model = tidy(mk.test(monthly_avg ~ year, data = .), conf.int=TRUE)) %>% 
+  unnest(model)
+
+
+```
+
+
+
 
 # TO DO
 -figure out zeros for Sagehen etc
