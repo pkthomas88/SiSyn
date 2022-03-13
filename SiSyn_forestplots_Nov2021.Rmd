@@ -20,6 +20,7 @@ library(tidyverse)
 library(knitr)
 library(psych)
 library(cowplot)
+library(ggpubr)
 
 theme_set(theme_bw()+
             theme(axis.text=element_text(size=8),
@@ -44,7 +45,7 @@ select <- dplyr::select
 
 ```
 
-> read in data
+> read in data and have a look at the data summary
 
 ```{r}
 
@@ -66,10 +67,11 @@ describe(wrtds)
 ```
 
 
-> a first plot to look at the raw data 
+# a first plot to look at the raw data 
 
 ```{r}
 
+#Effect sizes of concentration change
 ggplot(wrtds, aes(x = site, y = estC, ymin = lowC95, ymax = upC95))+
   geom_pointrange()+
   coord_flip()+
@@ -77,6 +79,8 @@ ggplot(wrtds, aes(x = site, y = estC, ymin = lowC95, ymax = upC95))+
   scale_x_discrete(limits = rev)+
   facet_wrap(~LTER, scales='free')
 
+
+#Effect sizes of flux change
 ggplot(wrtds, aes(x = site, y = estF, ymin = lowC95, ymax = upC95))+
   geom_pointrange()+
   coord_flip()+
@@ -87,18 +91,18 @@ ggplot(wrtds, aes(x = site, y = estF, ymin = lowC95, ymax = upC95))+
 
 ```
 
-> plots sorted by effect size of DSi conc and flux (these are trimmed to exclude huge CI values)
+# plots sorted by effect size of DSi conc and flux (these are trimmed to exclude huge CI values)
 
 ```{r}
 
 wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
   ggplot(aes(fill = estC, x = fct_reorder(site, estC), y = estC, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  geom_pointrange(color="black", shape = 21, size = 1)+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
-  theme(axis.text=element_text(size=16))+
+  theme(axis.text=element_text(size=12))+
   ylim(-10, 10)+
   xlab("site")+
   ylab("DSi change slope")
@@ -106,7 +110,7 @@ wrtds %>%
 wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
   ggplot(aes(fill = estF, x = fct_reorder(site, estF), y = estF, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  geom_pointrange(color="black", shape = 21, size = 1)+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
@@ -118,7 +122,7 @@ wrtds %>%
 ```
 
 
-> arranged by drainage area
+# arranged by drainage area
 
 ```{r}
 
@@ -161,7 +165,7 @@ ggplot(wrtds, aes(drainSqKm, estC))+
 
 ```
 
-> ordered by drainage area and faceted by biome
+# ordered by drainage area and faceted by biome
 
 ```{r}
 
@@ -204,14 +208,14 @@ plot_grid(A,B)
 
 ```
 
-> ordered by log(drainage area) and faceted by biome
+# ordered by log(drainage area) and faceted by biome
 
 ```{r}
 
 A <- wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
   ggplot(aes(fill = log_drainage, x = fct_reorder(site, log_drainage), y = estC, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  geom_pointrange(color="black", shape = 21, size = 1.5)+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
@@ -220,6 +224,7 @@ A <- wrtds %>%
   xlab("site")+
   facet_wrap(~Biome, scales = "free")+
       theme(axis.title.y = element_blank(),
+            legend.position = "top",
         axis.text.y = element_blank(),
         axis.ticks.y = element_blank())+
   scale_fill_viridis_c()+
@@ -230,7 +235,7 @@ A
 B <- wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
   ggplot(aes(fill = log_drainage, x = fct_reorder(site, log_drainage), y = estF, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  geom_pointrange(color="black", shape = 21, size = 1.5)+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
@@ -252,53 +257,60 @@ plot_grid(A,B)
 ```
 
 
-> ordered by log(drainage area) and faceted by biome
+# arranged and colored by biome with size showing drainage area
 
 ```{r}
 
+
 A <- wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
-  ggplot(aes(fill = log_drainage, x = fct_reorder(site, log_drainage), y = estC, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  ggplot(aes(fill = Biome, x = fct_reorder(site, Biome), y = estC, ymin = lowC95, ymax=upC95))+
+  geom_pointrange(color="black", shape = 21, aes(size = log_drainage))+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
   theme(axis.text=element_text(size=16))+
+  scale_size_continuous(range = c(.5, 1.5))+
   ylim(-10, 10)+
   xlab("site")+
-  facet_wrap(~Biome, scales = "free")+
-      # theme(axis.title.y = element_blank(),
-      #   axis.text.y = element_blank(),
-      #   axis.ticks.y = element_blank())+
-  scale_fill_viridis_c()+
+  #facet_wrap(~Biome, scales = "free")+
+      theme(axis.title.y = element_blank(),
+            legend.position = "top",
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  #scale_fill_viridis_c()+
+  guides(size = "none")+
+  scale_fill_brewer(palette = "Paired")+
   #scale_fill_continuous(low = "khaki", high =  "firebrick")+
   ylab("DSi change slope")
-A
+
+
 
 B <- wrtds %>%
   #mutate(LTER_site = paste(LTER, site, sep = "_")) %>% 
-  ggplot(aes(fill = log_drainage, x = fct_reorder(site, log_drainage), y = estF, ymin = lowC95, ymax=upC95))+
-  geom_pointrange(color="black", shape = 21, size = 2)+
+  ggplot(aes(fill = Biome, x = fct_reorder(site, Biome), y = estF, ymin = lowC95, ymax=upC95))+
+  geom_pointrange(color="black", shape = 21, aes(size = log_drainage))+
   #scale_x_discrete(limits = rev)+
   coord_flip()+
   geom_hline(yintercept = 0, linetype="dashed")+
   theme(axis.text=element_text(size=16))+
+  scale_size_continuous(range = c(.5, 1.5))+
   ylim(-10, 10)+
   xlab("site")+
-  facet_wrap(~Biome, scales = "free")+
-      # theme(axis.title.y = element_blank(),
-      #   axis.text.y = element_blank(),
-      #   axis.ticks.y = element_blank())+
-  scale_fill_viridis_c()+
+  #facet_wrap(~Biome, scales = "free")+
+      theme(axis.title.y = element_blank(),
+            legend.position = "top",
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  #scale_fill_viridis_c()+
+  guides(size = "none")+
+  scale_fill_brewer(palette = "Paired")+
   #scale_fill_continuous(low = "khaki", high =  "firebrick")+
   ylab("DSi flux change slope")
-B
 
-plot_grid(A,B)
-
+ggarrange(A, B, common.legend = TRUE)
 
 ```
-
 
 
 
